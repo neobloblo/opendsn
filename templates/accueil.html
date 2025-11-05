@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Bandeau version développement -->
+    <div class="alert alert-warning alert-dismissible fade show mt-4" role="alert">
+        <h5 class="alert-heading">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Version en développement
+        </h5>
+        <p class="mb-0">
+            Cette application est actuellement en cours de développement.
+            Les fonctionnalités peuvent être instables ou incomplètes.
+        </p>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+
+    <h1 class="mb-4">Bienvenue</h1>
+    <p class="lead">Application de gestion de la norme DSN</p>
+
+    <div class="row mt-5">
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-diagram-3 text-primary me-2"></i>
+                        Structures DSN
+                    </h5>
+                    <p class="card-text">
+                        Consultez la hiérarchie complète des structures de la norme DSN.
+                    </p>
+                    <a href="/structures" class="btn btn-outline-primary">Accéder</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-list-ul text-success me-2"></i>
+                        Rubriques
+                    </h5>
+                    <p class="card-text">
+                        Explorez les rubriques DSN par structure et sous-groupe.
+                    </p>
+                    <a href="/rubriques" class="btn btn-outline-success">Accéder</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-gender-ambiguous text-danger me-2"></i>
+                        Égalité H/F
+                    </h5>
+                    <p class="card-text">
+                        Analysez l'égalité professionnelle à partir de fichiers DSN.
+                    </p>
+                    <a href="/egalite-hf" class="btn btn-outline-danger">Accéder</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,901 @@
+{% extends "base.html" %}
+
+{% block title %}Égalité Homme-Femme{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="mb-2">
+                <i class="bi bi-gender-ambiguous me-3" style="color: #667eea;"></i>
+                Indicateur Égalité Homme-Femme
+            </h2>
+            <p class="text-muted mb-0">Analyse de l'égalité professionnelle entre les femmes et les hommes</p>
+        </div>
+        <div class="text-end">
+            <span class="badge bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); font-size: 1.1em; padding: 10px 20px;">
+                Index Égalité Pro
+            </span>
+        </div>
+    </div>
+
+    <!-- Formulaire d'upload -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-cloud-upload me-2"></i>
+                Importer des fichiers DSN (jusqu'à 12 mois)
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if upload_error %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Erreur :</strong> {{ upload_error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+
+            <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <label for="dsn_files" class="form-label fw-bold">
+                            <i class="bi bi-file-earmark-text me-2"></i>
+                            Sélectionner un ou plusieurs fichiers DSN (max 12)
+                            <i class="bi bi-info-circle text-muted ms-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                               title="Pour calculer tous les indicateurs de l'Index Égalité, importez jusqu'à 12 fichiers DSN mensuels consécutifs. Un seul fichier permet de calculer les indicateurs 1 et 5."></i>
+                        </label>
+                        <input class="form-control" type="file" id="dsn_files" name="dsn_files"
+                               accept=".xml,.txt,.csv,.dsn,.edi" multiple="multiple" required>
+                    </div>
+
+                    <!-- Liste des fichiers sélectionnés -->
+                    <div class="col-md-12 mb-3">
+                        <div id="filesList" class="alert alert-secondary d-none">
+                            <strong>Fichiers sélectionnés :</strong>
+                            <ul id="filesListContent" class="mb-0 mt-2"></ul>
+                        </div>
+                    </div>
+
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-upload me-2"></i>
+                            Analyser
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Afficher la liste des fichiers sélectionnés
+        document.getElementById('dsn_files').addEventListener('change', function(e) {
+            const files = e.target.files;
+            const filesList = document.getElementById('filesList');
+            const filesListContent = document.getElementById('filesListContent');
+
+            if (files.length > 0) {
+                if (files.length > 12) {
+                    alert('Vous ne pouvez sélectionner que 12 fichiers maximum.');
+                    e.target.value = '';
+                    filesList.classList.add('d-none');
+                    return;
+                }
+
+                filesListContent.innerHTML = '';
+                for (let i = 0; i < files.length; i++) {
+                    const li = document.createElement('li');
+                    const size = files[i].size < 1024*1024 ?
+                        (files[i].size / 1024).toFixed(2) + ' KB' :
+                        (files[i].size / (1024*1024)).toFixed(2) + ' MB';
+                    li.textContent = files[i].name + ' (' + size + ')';
+                    filesListContent.appendChild(li);
+                }
+                filesList.classList.remove('d-none');
+            } else {
+                filesList.classList.add('d-none');
+            }
+        });
+    </script>
+
+    <!-- Sélection des types de rémunération -->
+    {% if analyse and analyse.types_disponibles %}
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-funnel me-2"></i>
+                Filtrer par type de rémunération
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data">
+                <!-- Garder les fichiers déjà uploadés -->
+                {% if files_info %}
+                    {% for file in files_info %}
+                    <input type="hidden" name="keep_files" value="{{ file.filename }}">
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Date de référence -->
+                <div class="mb-4">
+                    <label for="date_reference" class="form-label fw-bold">
+                        <i class="bi bi-calendar3 me-2"></i>
+                        Date de référence pour le calcul de l'âge
+                        <i class="bi bi-info-circle text-muted ms-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                           title="{% if analyse.date_reference %}Par défaut : dernier jour de la période DSN ({{ analyse.date_reference[0:2] }}/{{ analyse.date_reference[2:4] }}/{{ analyse.date_reference[4:8] }}){% else %}Laissez vide pour utiliser le dernier jour de la période DSN{% endif %}"></i>
+                    </label>
+                    <input type="date" class="form-control" id="date_reference" name="date_reference"
+                           value="{% if date_reference_form %}{{ date_reference_form }}{% elif analyse.date_reference %}{{ analyse.date_reference[4:8] }}-{{ analyse.date_reference[2:4] }}-{{ analyse.date_reference[0:2] }}{% endif %}">
+                </div>
+
+                <label class="form-label fw-bold mb-3">
+                    Types de rémunération
+                    <i class="bi bi-info-circle text-muted ms-2" data-bs-toggle="tooltip" data-bs-placement="right"
+                       title="Sélectionnez les types de rémunération à inclure dans le calcul de l'égalité H/F"></i>
+                </label>
+
+                <div class="row">
+                    {% for type in analyse.types_disponibles %}
+                    <div class="col-md-6 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   name="types_remuneration" value="{{ type.code }}"
+                                   id="type_{{ type.code }}"
+                                   {% if type.code in types_selectionnes %}checked{% endif %}>
+                            <label class="form-check-label" for="type_{{ type.code }}">
+                                <strong>{{ type.code }}</strong> - {{ type.libelle }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-info">
+                        <i class="bi bi-arrow-clockwise me-2"></i>
+                        Recalculer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Résultats -->
+    {% if analyse %}
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-check-circle me-2"></i>
+                Résultats de l'analyse
+            </h5>
+        </div>
+        <div class="card-body">
+            <!-- Infos fichier(s) -->
+            <div class="alert alert-light border">
+                <div class="row align-items-center mb-3">
+                    <div class="col-md-8">
+                        <strong><i class="bi bi-file-earmark-check me-2"></i>{{ files_info|length }} fichier{% if files_info|length > 1 %}s{% endif %} analysé{% if files_info|length > 1 %}s{% endif %}</strong>
+                        {% if analyse.summary.nb_mois_analyses %}
+                        <span class="badge bg-info ms-2">{{ analyse.summary.nb_mois_analyses }} mois</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <strong class="text-primary">{{ analyse.summary.nb_salaries }}</strong> salariés
+                    </div>
+                </div>
+
+                <!-- Détails fichiers -->
+                <div class="border-top pt-2">
+                    {% if files_info %}
+                    <strong>Fichiers :</strong>
+                    <ul class="small mb-2">
+                    {% for file in files_info %}
+                        <li>{{ file.filename }} ({{ file.size }})</li>
+                    {% endfor %}
+                    </ul>
+                    {% endif %}
+                    <small class="text-muted">
+                        <strong>Lignes DSN traitées :</strong> {{ analyse.summary.total_lines }}
+                        {% if analyse.summary.periode_analyse %}
+                        <br><strong>Période :</strong> {{ analyse.summary.periode_analyse }}
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+
+
+            <!-- Index Égalité Professionnelle Officiel -->
+            {% if analyse.index_officiel and analyse.index_officiel.nb_groupes_valides > 0 %}
+            <h6 class="mt-4 mb-3">
+                <i class="bi bi-award me-2"></i>
+                Index Égalité Professionnelle (Indicateur 1)
+            </h6>
+            <div class="alert alert-primary">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-0">
+                            Score : <strong>{{ analyse.index_officiel.score }} / {{ analyse.index_officiel.score_max }} points</strong>
+                        </h4>
+                        <small class="text-muted">Écart moyen pondéré : {{ analyse.index_officiel.ecart_moyen_pondere }}%</small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">
+                            Calculé sur {{ analyse.index_officiel.nb_groupes_valides }} groupe(s) CSP × Âge valide(s)
+                            <br>(minimum 3 H et 3 F par groupe)
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Détail par groupe CSP × Âge -->
+            <div class="table-responsive mb-4">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>CSP</th>
+                            <th>Tranche d'âge</th>
+                            <th class="text-center">Nb H</th>
+                            <th class="text-center">Nb F</th>
+                            <th class="text-end">Moy. Hommes</th>
+                            <th class="text-end">Moy. Femmes</th>
+                            <th class="text-end">Écart %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for groupe in analyse.index_officiel.groupes %}
+                        <tr>
+                            <td><small>{{ groupe.csp }}</small></td>
+                            <td class="text-center"><small>{{ groupe.age_group }}</small></td>
+                            <td class="text-center">{{ groupe.nb_hommes }}</td>
+                            <td class="text-center">{{ groupe.nb_femmes }}</td>
+                            <td class="text-end">{{ "%.2f"|format(groupe.moyenne_h) }} €</td>
+                            <td class="text-end">{{ "%.2f"|format(groupe.moyenne_f) }} €</td>
+                            <td class="text-end">
+                                {% if groupe.ecart_pct > 0 %}
+                                <span class="badge bg-warning">{{ "%.2f"|format(groupe.ecart_pct) }}%</span>
+                                {% elif groupe.ecart_pct < 0 %}
+                                <span class="badge bg-success">{{ "%.2f"|format(groupe.ecart_pct) }}%</span>
+                                {% else %}
+                                <span class="badge bg-success">0%</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Indicateur 5 - Top 10 rémunérations -->
+            {% if analyse.indicateur_top10 %}
+            <h6 class="mt-4 mb-3">
+                <i class="bi bi-trophy me-2"></i>
+                Indicateur 5 - Top 10 des plus hautes rémunérations
+            </h6>
+            <div class="alert alert-success">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-0">
+                            Score : <strong>{{ analyse.indicateur_top10.score }} / {{ analyse.indicateur_top10.score_max }} points</strong>
+                        </h4>
+                        <small class="text-muted">
+                            Sexe sous-représenté dans l'entreprise : {{ analyse.indicateur_top10.sexe_sous_represente }}
+                            ({{ analyse.indicateur_top10.total_entreprise_femmes }}F / {{ analyse.indicateur_top10.total_entreprise_hommes }}H)
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">
+                            Dans le top 10 : {{ analyse.indicateur_top10.nb_femmes }} femmes, {{ analyse.indicateur_top10.nb_hommes }} hommes
+                            <br>
+                            {% if analyse.indicateur_top10.nb_sexe_sous_represente >= 4 %}
+                            <span class="badge bg-success">Excellent (4-5 personnes)</span>
+                            {% elif analyse.indicateur_top10.nb_sexe_sous_represente >= 2 %}
+                            <span class="badge bg-warning">Moyen (2-3 personnes)</span>
+                            {% else %}
+                            <span class="badge bg-danger">Insuffisant (0-1 personne)</span>
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Détail Top 10 -->
+            <div class="table-responsive mb-4">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-center">#</th>
+                            <th>Nom</th>
+                            <th>Prénom</th>
+                            <th class="text-center">Sexe</th>
+                            <th>CSP</th>
+                            <th class="text-end">Rémunération</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for personne in analyse.indicateur_top10.top10 %}
+                        <tr>
+                            <td class="text-center">{{ loop.index }}</td>
+                            <td>{{ personne.nom }}</td>
+                            <td>{{ personne.prenom }}</td>
+                            <td class="text-center">
+                                {% if personne.sexe == 'M' %}
+                                <span class="badge bg-primary">H</span>
+                                {% else %}
+                                <span class="badge bg-danger">F</span>
+                                {% endif %}
+                            </td>
+                            <td><small>{{ personne.csp or '-' }}</small></td>
+                            <td class="text-end"><strong>{{ "%.2f"|format(personne.remuneration) }} €</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Indicateur 2 - Augmentations individuelles -->
+            {% if analyse.indicateur_augmentations %}
+            <h6 class="mt-4 mb-3">
+                <i class="bi bi-graph-up-arrow me-2"></i>
+                Indicateur 2 - Écart d'augmentations individuelles
+            </h6>
+            {% if analyse.indicateur_augmentations.calculable %}
+            <div class="alert alert-success">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-0">
+                            Score : <strong>{{ analyse.indicateur_augmentations.score }} / {{ analyse.indicateur_augmentations.score_max }} points</strong>
+                        </h4>
+                        <small class="text-muted">
+                            Période: {{ analyse.indicateur_augmentations.periode_comparaison }}
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <p class="mb-1">
+                            Écart de taux d'augmentation : <strong>{{ analyse.indicateur_augmentations.ecart }}%</strong>
+                        </p>
+                        <small class="text-muted">
+                            Hommes : {{ analyse.indicateur_augmentations.taux_augmentation_hommes }}%
+                            ({{ analyse.indicateur_augmentations.nb_augmentations_hommes }}/{{ analyse.indicateur_augmentations.effectif_hommes }})
+                            <br>
+                            Femmes : {{ analyse.indicateur_augmentations.taux_augmentation_femmes }}%
+                            ({{ analyse.indicateur_augmentations.nb_augmentations_femmes }}/{{ analyse.indicateur_augmentations.effectif_femmes }})
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5 class="mb-2">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            {{ analyse.indicateur_augmentations.message }}
+                        </h5>
+                        {% if analyse.indicateur_augmentations.explication %}
+                        <p class="mb-0">{{ analyse.indicateur_augmentations.explication }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <span class="badge bg-secondary" style="font-size: 1.2em;">
+                            Non calculable / 20 points
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- Indicateur 3 - Promotions -->
+            {% if analyse.indicateur_promotions %}
+            <h6 class="mt-4 mb-3">
+                <i class="bi bi-arrow-up-circle me-2"></i>
+                Indicateur 3 - Écart de promotions
+            </h6>
+            {% if analyse.indicateur_promotions.calculable %}
+            <div class="alert alert-success">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-0">
+                            Score : <strong>{{ analyse.indicateur_promotions.score }} / {{ analyse.indicateur_promotions.score_max }} points</strong>
+                        </h4>
+                        <small class="text-muted">
+                            Période: {{ analyse.indicateur_promotions.periode_comparaison }}
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <p class="mb-1">
+                            Écart de taux de promotion : <strong>{{ analyse.indicateur_promotions.ecart }}%</strong>
+                        </p>
+                        <small class="text-muted">
+                            Hommes : {{ analyse.indicateur_promotions.taux_promotion_hommes }}%
+                            ({{ analyse.indicateur_promotions.nb_promotions_hommes }}/{{ analyse.indicateur_promotions.effectif_hommes }})
+                            <br>
+                            Femmes : {{ analyse.indicateur_promotions.taux_promotion_femmes }}%
+                            ({{ analyse.indicateur_promotions.nb_promotions_femmes }}/{{ analyse.indicateur_promotions.effectif_femmes }})
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5 class="mb-2">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            {{ analyse.indicateur_promotions.message }}
+                        </h5>
+                        {% if analyse.indicateur_promotions.explication %}
+                        <p class="mb-0">{{ analyse.indicateur_promotions.explication }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <span class="badge bg-secondary" style="font-size: 1.2em;">
+                            Non calculable / 15 points
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- Indicateur 4 - Congé maternité -->
+            {% if analyse.indicateur_conge_maternite %}
+            <h6 class="mt-4 mb-3">
+                <i class="bi bi-person-hearts me-2"></i>
+                Indicateur 4 - Retour de congé maternité
+            </h6>
+            <div class="alert alert-warning">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5 class="mb-2">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            {{ analyse.indicateur_conge_maternite.message }}
+                        </h5>
+                        <p class="mb-0">{{ analyse.indicateur_conge_maternite.explication }}</p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <span class="badge bg-secondary" style="font-size: 1.2em;">
+                            Non calculable / 15 points
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Score total Index -->
+            {% if analyse.index_officiel and analyse.indicateur_top10 %}
+            <div class="alert" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);">
+                <h5 class="mb-0 text-white">
+                    <i class="bi bi-calculator me-2"></i>
+                    <strong>SCORE TOTAL INDEX ÉGALITÉ PROFESSIONNELLE</strong>
+                </h5>
+                {% if analyse.summary and analyse.summary.nb_mois_analyses %}
+                <div class="alert mt-3 mb-0" style="background-color: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.3); color: white;">
+                    <i class="bi bi-calendar-range me-2"></i>
+                    <strong>Analyse multi-mois :</strong> {{ analyse.summary.nb_mois_analyses }} mois analysés
+                    ({{ analyse.summary.periode_analyse }})
+                </div>
+                {% endif %}
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 24px 0;">
+                <div class="row">
+                    <div class="col-md-7">
+                        <p class="mb-2 text-white">
+                            <strong>Indicateur 1</strong> (Écart de rémunération) :
+                            <span class="badge" style="background-color: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4);">{{ analyse.index_officiel.score }}/40 points</span>
+                        </p>
+                        <p class="mb-2 text-white">
+                            <strong>Indicateur 2</strong> (Augmentations individuelles) :
+                            {% if analyse.indicateur_augmentations.calculable %}
+                            <span class="badge" style="background-color: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4);">{{ analyse.indicateur_augmentations.score }}/20 points</span>
+                            {% else %}
+                            <span class="badge" style="background-color: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);">Non calculable / 20 points</span>
+                            {% endif %}
+                        </p>
+                        <p class="mb-2 text-white">
+                            <strong>Indicateur 3</strong> (Promotions) :
+                            {% if analyse.indicateur_promotions.calculable %}
+                            <span class="badge" style="background-color: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4);">{{ analyse.indicateur_promotions.score }}/15 points</span>
+                            {% else %}
+                            <span class="badge" style="background-color: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);">Non calculable / 15 points</span>
+                            {% endif %}
+                        </p>
+                        <p class="mb-2 text-white">
+                            <strong>Indicateur 4</strong> (Congé maternité) :
+                            {% if analyse.indicateur_conge_maternite.calculable %}
+                            <span class="badge" style="background-color: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4);">{{ analyse.indicateur_conge_maternite.score }}/15 points</span>
+                            {% else %}
+                            <span class="badge" style="background-color: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);">Non calculable / 15 points</span>
+                            {% endif %}
+                        </p>
+                        <p class="mb-2 text-white">
+                            <strong>Indicateur 5</strong> (Top 10 rémunérations) :
+                            <span class="badge" style="background-color: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4);">{{ analyse.indicateur_top10.score }}/10 points</span>
+                        </p>
+                    </div>
+                    <div class="col-md-5 text-end">
+                        {% set score_total = analyse.index_officiel.score + analyse.indicateur_top10.score %}
+                        {% if analyse.indicateur_augmentations.calculable %}
+                            {% set score_total = score_total + analyse.indicateur_augmentations.score %}
+                        {% endif %}
+                        {% if analyse.indicateur_promotions.calculable %}
+                            {% set score_total = score_total + analyse.indicateur_promotions.score %}
+                        {% endif %}
+                        {% if analyse.indicateur_conge_maternite.calculable %}
+                            {% set score_total = score_total + analyse.indicateur_conge_maternite.score %}
+                        {% endif %}
+
+                        {% set score_max = 50 %}
+                        {% if analyse.indicateur_augmentations.calculable %}
+                            {% set score_max = score_max + 20 %}
+                        {% endif %}
+                        {% if analyse.indicateur_promotions.calculable %}
+                            {% set score_max = score_max + 15 %}
+                        {% endif %}
+                        {% if analyse.indicateur_conge_maternite.calculable %}
+                            {% set score_max = score_max + 15 %}
+                        {% endif %}
+
+                        <div style="background-color: rgba(255,255,255,0.3); border-radius: 16px; padding: 24px; border: 2px solid rgba(255,255,255,0.4);">
+                            <h3 class="mb-3 text-white">
+                                <strong style="font-size: 2.5em;">{{ score_total }}</strong>
+                                <span style="font-size: 1.5em; opacity: 0.9;">/ {{ score_max }}</span>
+                            </h3>
+                            <p class="text-white mb-0" style="font-size: 1.1em;">POINTS</p>
+                        </div>
+
+                        {% if score_max == 100 %}
+                        <p class="mb-2 mt-3">
+                            <span class="badge" style="background-color: rgba(56, 239, 125, 0.3); border: 2px solid #38ef7d; color: white; font-size: 1em; padding: 8px 16px;">✓ Index complet calculé !</span>
+                        </p>
+                        {% else %}
+                        <p class="mb-2 mt-3">
+                            <span class="badge" style="background-color: rgba(79, 172, 254, 0.3); border: 2px solid #4facfe; color: white; font-size: 1em; padding: 8px 16px;">Score partiel</span>
+                        </p>
+                        <small class="text-white" style="opacity: 0.85;">
+                            Score maximum possible : 100/100 points
+                            {% if score_max < 100 %}
+                            <br>(nécessite données multi-mois pour indicateurs 2, 3, 4)
+                            {% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Graphiques -->
+            <div class="mt-5 mb-4">
+                <h5 class="mb-4">
+                    <i class="bi bi-bar-chart-fill me-2" style="color: #667eea;"></i>
+                    Visualisations des données
+                </h5>
+                <div class="row">
+                    <!-- Graphique répartition H/F -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card" style="border-radius: 20px; overflow: hidden;">
+                            <div class="card-header" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-people-fill me-2"></i>
+                                    Répartition Hommes / Femmes
+                                </h6>
+                            </div>
+                            <div class="card-body" style="background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);">
+                                <canvas id="chartRepartitionHF"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Graphique scores indicateurs -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card" style="border-radius: 20px; overflow: hidden;">
+                            <div class="card-header" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-graph-up-arrow me-2"></i>
+                                    Scores des indicateurs
+                                </h6>
+                            </div>
+                            <div class="card-body" style="background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);">
+                                <canvas id="chartIndicateurs"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste des salariés -->
+            <h6 class="mt-4 mb-3">Liste des salariés (20 premiers)</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Matricule</th>
+                            <th>Nom</th>
+                            <th>Prénom</th>
+                            <th>Sexe</th>
+                            <th>Âge</th>
+                            <th>CSP</th>
+                            <th>Position convention</th>
+                            <th class="text-end">Détail rémunérations (par période)</th>
+                            <th class="text-end">Total période</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for salarie in analyse.stats.salaries[:20] %}
+                        <tr>
+                            <td><code>{{ salarie.matricule or '-' }}</code></td>
+                            <td>{{ salarie.nom or '-' }}</td>
+                            <td>{{ salarie.prenom or '-' }}</td>
+                            <td>
+                                {% if salarie.sexe == 'M' %}
+                                <span class="badge bg-primary">H</span>
+                                {% elif salarie.sexe == 'F' %}
+                                <span class="badge bg-danger">F</span>
+                                {% else %}
+                                <span class="badge bg-secondary">?</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>
+                                    {% if salarie.tranche_age %}
+                                    <span class="badge bg-info">{{ salarie.tranche_age }}</span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                <small>
+                                    {% if salarie.csp %}
+                                    <span class="badge bg-secondary">{{ salarie.csp }}</span>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                <small>{{ salarie.position_convention or '-' }}</small>
+                            </td>
+                            <td class="text-end">
+                                {% if salarie.remunerations %}
+                                    <small>
+                                    {% for remun in salarie.remunerations %}
+                                        {% if remun is mapping and remun.type_code in types_selectionnes %}
+                                            <div class="mb-1">
+                                                <strong>{{ "%.2f"|format(remun.montant) }}€</strong>
+                                                {% if remun.type_libelle %}
+                                                    <span class="badge bg-secondary">{{ remun.type_libelle }}</span>
+                                                {% endif %}
+                                                {% if remun.date_debut and remun.date_fin %}
+                                                    <span class="text-muted">({{ remun.date_debut[0:2] }}/{{ remun.date_debut[2:4] }}/{{ remun.date_debut[4:8] }})</span>
+                                                {% endif %}
+                                            </div>
+                                        {% elif remun is not mapping %}
+                                            <div class="mb-1">{{ "%.2f"|format(remun) }}€</div>
+                                        {% endif %}
+                                    {% endfor %}
+                                    </small>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if salarie.remunerations %}
+                                    {% set total = namespace(value=0) %}
+                                    {% for remun in salarie.remunerations %}
+                                        {% if remun is mapping and remun.type_code in types_selectionnes %}
+                                            {% set total.value = total.value + remun.montant %}
+                                        {% elif remun is not mapping %}
+                                            {% set total.value = total.value + remun %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    <strong>{{ "%.2f"|format(total.value) }} €</strong>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if analyse.stats.salaries|length > 20 %}
+                <p class="text-muted text-center">
+                    <small>Affichage limité aux 20 premiers sur {{ analyse.stats.salaries|length }} salariés</small>
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Activer tous les tooltips Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+
+    {% if analyse %}
+    // Graphique répartition H/F
+    const ctxHF = document.getElementById('chartRepartitionHF');
+    if (ctxHF) {
+        new Chart(ctxHF, {
+            type: 'doughnut',
+            data: {
+                labels: ['Hommes', 'Femmes'],
+                datasets: [{
+                    data: [{{ analyse.egalite_hf.hommes }}, {{ analyse.egalite_hf.femmes }}],
+                    backgroundColor: [
+                        'rgba(13, 110, 253, 0.8)',
+                        'rgba(220, 53, 69, 0.8)'
+                    ],
+                    borderWidth: 4,
+                    borderColor: '#fff',
+                    hoverOffset: 15,
+                    hoverBorderWidth: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: {
+                    animateRotate: true,
+                    animateScale: true,
+                    duration: 1500,
+                    easing: 'easeInOutQuart'
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 14,
+                                weight: '600'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        cornerRadius: 8,
+                        titleFont: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            size: 14
+                        },
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                let value = context.parsed || 0;
+                                let total = {{ analyse.egalite_hf.total_salaries }};
+                                let percent = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value + ' (' + percent + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Graphique scores indicateurs
+    const ctxIndicateurs = document.getElementById('chartIndicateurs');
+    if (ctxIndicateurs) {
+        new Chart(ctxIndicateurs, {
+            type: 'bar',
+            data: {
+                labels: ['Indicateur 1\n(Rémunération)', 'Indicateur 2\n(Augmentations)', 'Indicateur 3\n(Promotions)', 'Indicateur 4\n(Congé mat.)', 'Indicateur 5\n(Top 10)'],
+                datasets: [{
+                    label: 'Score obtenu',
+                    data: [
+                        {{ analyse.index_officiel.score if analyse.index_officiel else 0 }},
+                        {{ analyse.indicateur_augmentations.score if analyse.indicateur_augmentations.calculable else 0 }},
+                        {{ analyse.indicateur_promotions.score if analyse.indicateur_promotions.calculable else 0 }},
+                        {{ analyse.indicateur_conge_maternite.score if analyse.indicateur_conge_maternite.calculable else 0 }},
+                        {{ analyse.indicateur_top10.score if analyse.indicateur_top10 else 0 }}
+                    ],
+                    backgroundColor: 'rgba(17, 153, 142, 0.8)',
+                    borderColor: '#11998e',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false
+                }, {
+                    label: 'Score maximum',
+                    data: [40, 20, 15, 15, 10],
+                    backgroundColor: 'rgba(233, 236, 239, 0.5)',
+                    borderColor: '#dee2e6',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: {
+                    duration: 1500,
+                    easing: 'easeInOutQuart',
+                    delay: function(context) {
+                        let delay = 0;
+                        if (context.type === 'data' && context.mode === 'default') {
+                            delay = context.dataIndex * 200;
+                        }
+                        return delay;
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 40,
+                        ticks: {
+                            stepSize: 10,
+                            font: {
+                                size: 12,
+                                weight: '500'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)',
+                            drawBorder: false
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: {
+                                size: 11,
+                                weight: '600'
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            font: {
+                                size: 14,
+                                weight: '600'
+                            },
+                            usePointStyle: true,
+                            pointStyle: 'rectRounded'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        cornerRadius: 8,
+                        titleFont: {
+                            size: 16,
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            size: 14
+                        },
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.parsed.y + ' points';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Rubriques DSN{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-3">Rubriques DSN</h2>
+    <p class="text-muted mb-4">Liste des rubriques par structure</p>
+
+    <!-- Sélecteur de structure et sous-groupe -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body">
+            <div class="row align-items-center mb-3">
+                <div class="col-md-3">
+                    <label for="structureSelect" class="form-label fw-bold mb-0">
+                        <i class="bi bi-funnel me-2"></i>Filtrer par structure :
+                    </label>
+                </div>
+                <div class="col-md-5">
+                    <select class="form-select" id="structureSelect" onchange="filtrerParStructure()">
+                        {% for structure in structures %}
+                        <option value="{{ structure.code }}"
+                                {% if structure.code == structure_selectionnee %}selected{% endif %}>
+                            {{ structure.code }} - {{ structure.nom }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 text-end">
+                    {% set total_rubriques = namespace(count=0) %}
+                    {% for sg in sous_groupes %}
+                        {% set total_rubriques.count = total_rubriques.count + sg.rubriques|length %}
+                    {% endfor %}
+                    <span class="badge bg-primary" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
+                        <i class="bi bi-file-text me-1"></i>{{ total_rubriques.count }} rubrique(s)
+                    </span>
+                    <span class="badge bg-secondary ms-2" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
+                        <i class="bi bi-folder me-1"></i>{{ sous_groupes|length }} sous-groupe(s)
+                    </span>
+                </div>
+            </div>
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <label for="sousGroupeSelect" class="form-label fw-bold">
+                        <i class="bi bi-funnel me-2"></i>Filtrer par sous-groupe :
+                    </label>
+                </div>
+                <div class="col-md-9">
+                    <select class="form-select" id="sousGroupeSelect" onchange="filtrerParSousGroupe()">
+                        <option value="">Tous les sous-groupes</option>
+                        {% for sg in sous_groupes %}
+                        <option value="{{ sg.code }}">{{ sg.code }} - {{ sg.nom }} ({{ sg.rubriques|length }} rubriques)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rubriques groupées par sous-groupe -->
+    {% if sous_groupes %}
+    <div class="mb-3">
+        <input type="text" id="searchInput" class="form-control" placeholder="Rechercher dans les rubriques...">
+    </div>
+
+    {% for sous_groupe in sous_groupes %}
+    <div class="card shadow-sm mb-4 sous-groupe-card" data-sous-groupe="{{ sous_groupe.code }}">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-folder2-open me-2"></i>
+                <strong>{{ sous_groupe.code }}</strong> - {{ sous_groupe.nom }}
+                <span class="badge bg-light text-dark ms-2">{{ sous_groupe.cardinalite }}</span>
+                <span class="badge bg-info ms-2">{{ sous_groupe.rubriques|length }} rubrique(s)</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if sous_groupe.rubriques %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped rubriquesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Code</th>
+                            <th>Nom</th>
+                            <th>Description</th>
+                            <th>Type</th>
+                            <th>Taille max</th>
+                            <th>Obligatoire</th>
+                            <th>Format</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rubrique in sous_groupe.rubriques %}
+                        <tr>
+                            <td><strong>{{ rubrique.code }}</strong></td>
+                            <td>{{ rubrique.nom }}</td>
+                            <td>{{ rubrique.description or '-' }}</td>
+                            <td>{{ rubrique.type_donnee or '-' }}</td>
+                            <td>{{ rubrique.taille_max or '-' }}</td>
+                            <td>
+                                {% if rubrique.obligatoire %}
+                                <span class="badge bg-danger">Oui</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Non</span>
+                                {% endif %}
+                            </td>
+                            <td><code>{{ rubrique.format or '-' }}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-muted">
+                <i class="bi bi-info-circle me-2"></i>
+                Aucune rubrique dans ce sous-groupe
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        Aucun sous-groupe trouvé pour la structure <strong>{{ structure_selectionnee }}</strong>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fonction de changement de structure
+function filtrerParStructure() {
+    const select = document.getElementById('structureSelect');
+    const structure = select.value;
+    window.location.href = '/rubriques?structure=' + structure;
+}
+
+// Fonction de filtrage par sous-groupe
+function filtrerParSousGroupe() {
+    const select = document.getElementById('sousGroupeSelect');
+    const sousGroupeCode = select.value;
+    const cards = document.querySelectorAll('.sous-groupe-card');
+
+    for (let card of cards) {
+        if (sousGroupeCode === '') {
+            // Afficher tous les sous-groupes
+            card.style.display = '';
+        } else {
+            // Afficher uniquement le sous-groupe sélectionné
+            const cardSousGroupe = card.getAttribute('data-sous-groupe');
+            card.style.display = (cardSousGroupe === sousGroupeCode) ? '' : 'none';
+        }
+    }
+
+    // Réinitialiser la recherche si elle est active
+    document.getElementById('searchInput').value = '';
+}
+
+// Fonction de recherche globale
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchValue = this.value.toLowerCase();
+    const sousGroupeSelect = document.getElementById('sousGroupeSelect');
+    const sousGroupeFilter = sousGroupeSelect.value;
+    const cards = document.querySelectorAll('.sous-groupe-card');
+
+    // Réinitialiser le filtre de sous-groupe si on fait une recherche
+    if (searchValue !== '' && sousGroupeFilter !== '') {
+        sousGroupeSelect.value = '';
+    }
+
+    for (let card of cards) {
+        const tables = card.getElementsByClassName('rubriquesTable');
+        if (tables.length === 0) continue;
+
+        const rows = tables[0].getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+        let hasVisibleRow = false;
+
+        for (let row of rows) {
+            const text = row.textContent.toLowerCase();
+            const isVisible = text.includes(searchValue);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) hasVisibleRow = true;
+        }
+
+        // Masquer la carte complète si aucune rubrique n'est visible
+        card.style.display = hasVisibleRow || searchValue === '' ? '' : 'none';
+    }
+});
+</script>
+{% endblock %}

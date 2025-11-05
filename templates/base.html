@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSN - {% block title %}Gestion de la norme DSN{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --warning-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+        }
+
+        .nav-link {
+            color: #495057;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            padding: 14px 18px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            background-color: #e9ecef;
+            color: #0d6efd;
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+        }
+
+        .nav-link.active {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+        }
+
+        .main-content {
+            padding: 40px;
+            background-color: #fafbfc;
+        }
+
+        .card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+        }
+
+        .card-header {
+            border: none;
+            border-radius: 16px 16px 0 0 !important;
+            padding: 20px 24px;
+            font-weight: 600;
+        }
+
+        .card-header.bg-primary {
+            background: var(--primary-gradient) !important;
+        }
+
+        .card-header.bg-success {
+            background: var(--success-gradient) !important;
+        }
+
+        .card-header.bg-info {
+            background: var(--info-gradient) !important;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .table-hover tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        .table-hover tbody tr:hover {
+            background-color: #f8f9fa;
+            transform: scale(1.01);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .btn {
+            border-radius: 10px;
+            padding: 12px 24px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+
+        .alert {
+            border: none;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 12px 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        h2, h3, h4, h5, h6 {
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .shadow-sm {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08) !important;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            animation: slideInUp 0.5s ease-out;
+        }
+
+        .tooltip-inner {
+            background-color: #2d3748;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.875rem;
+        }
+
+        .bi {
+            transition: transform 0.2s ease;
+        }
+
+        .nav-link:hover .bi, .btn:hover .bi {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Menu latéral -->
+            <div class="col-md-2 sidebar">
+                <h3 class="text-primary mb-4">DSN</h3>
+                <hr>
+                <nav class="nav flex-column">
+                    <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
+                        <i class="bi bi-house-door me-2"></i> Accueil
+                    </a>
+                    <a class="nav-link {% if request.path == '/structures' %}active{% endif %}" href="/structures">
+                        <i class="bi bi-diagram-3 me-2"></i> Structures
+                    </a>
+                    <a class="nav-link {% if request.path == '/rubriques' %}active{% endif %}" href="/rubriques">
+                        <i class="bi bi-list-ul me-2"></i> Rubriques
+                    </a>
+                    <hr class="my-3">
+                    <small class="text-muted px-3 mb-2">Indicateurs RH</small>
+                    <a class="nav-link {% if request.path == '/egalite-hf' %}active{% endif %}" href="/egalite-hf">
+                        <i class="bi bi-gender-ambiguous me-2"></i> Égalité Homme-Femme
+                    </a>
+                    <hr class="my-3">
+                    <a class="nav-link {% if request.path == '/analyse' %}active{% endif %}" href="/analyse">
+                        <i class="bi bi-bar-chart me-2"></i> Analyse
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Contenu principal -->
+            <div class="col-md-10 main-content">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

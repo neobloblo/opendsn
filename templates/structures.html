@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Structures Hiérarchiques DSN{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-3">Structures Hiérarchiques DSN</h2>
+    <p class="text-muted mb-4">Les structures principales de la norme DSN</p>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="mb-3">
+                <input type="text" id="searchInput" class="form-control" placeholder="Rechercher...">
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-striped" id="structuresTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th onclick="sortTable(0)" style="cursor: pointer;">
+                                Ordre <i class="bi bi-arrow-down-up"></i>
+                            </th>
+                            <th onclick="sortTable(1)" style="cursor: pointer;">
+                                Code <i class="bi bi-arrow-down-up"></i>
+                            </th>
+                            <th onclick="sortTable(2)" style="cursor: pointer;">
+                                Nom <i class="bi bi-arrow-down-up"></i>
+                            </th>
+                            <th onclick="sortTable(3)" style="cursor: pointer;">
+                                Description <i class="bi bi-arrow-down-up"></i>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for structure in structures %}
+                        <tr>
+                            <td>{{ structure.ordre }}</td>
+                            <td><strong>{{ structure.code }}</strong></td>
+                            <td>{{ structure.nom }}</td>
+                            <td>{{ structure.description }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fonction de recherche
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchValue = this.value.toLowerCase();
+    const table = document.getElementById('structuresTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+
+    for (let row of rows) {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchValue) ? '' : 'none';
+    }
+});
+
+// Fonction de tri
+function sortTable(columnIndex) {
+    const table = document.getElementById('structuresTable');
+    const tbody = table.getElementsByTagName('tbody')[0];
+    const rows = Array.from(tbody.getElementsByTagName('tr'));
+
+    const isNumeric = columnIndex === 0; // Colonne "Ordre"
+
+    rows.sort((a, b) => {
+        const aValue = a.getElementsByTagName('td')[columnIndex].textContent.trim();
+        const bValue = b.getElementsByTagName('td')[columnIndex].textContent.trim();
+
+        if (isNumeric) {
+            return parseInt(aValue) - parseInt(bValue);
+        } else {
+            return aValue.localeCompare(bValue, 'fr');
+        }
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
+}
+</script>
+{% endblock %}
