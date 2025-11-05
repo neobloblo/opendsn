@@ -14,6 +14,8 @@
 
 ## Option 1 : Railway (⭐ RECOMMANDÉ - Le plus simple)
 
+**⚠️ Note importante :** L'application utilise SQLite qui nécessite des dépendances système. Le déploiement utilise Docker pour garantir un environnement stable.
+
 **Avantages :**
 - ✅ Déploiement en 5 minutes
 - ✅ Flask natif supporté
@@ -33,22 +35,32 @@
    - Cliquer sur "New Project"
    - Sélectionner "Deploy from GitHub"
    - Autoriser Railway à accéder à votre repo GitHub
-   - Sélectionner le repo `dsn`
+   - Sélectionner le repo `neobloblo/opendsn`
 
 3. **Configuration automatique** :
-   Railway détecte automatiquement Flask grâce aux fichiers :
-   - `Procfile` → commande de démarrage
-   - `requirements.txt` → dépendances Python
-   - `runtime.txt` → version Python
+   Railway détecte automatiquement le `Dockerfile` et build l'image Docker avec :
+   - Python 3.11-slim
+   - SQLite3 et dépendances système
+   - Dépendances Python depuis `requirements.txt`
+   - Gunicorn pour la production
 
-4. **Vérifier le déploiement** :
-   - Railway build et déploie automatiquement
-   - Un domaine HTTPS est généré : `https://votre-app.railway.app`
-   - Consulter les logs pour vérifier le démarrage
+4. **Générer un domaine public** :
+   - Aller dans l'onglet **Settings** du service
+   - Chercher la section **"Networking"** ou **"Public Networking"**
+   - Cliquer sur **"Generate Domain"**
+   - Railway crée automatiquement : `https://opendsn-production-xxxx.up.railway.app`
 
-5. **Variables d'environnement (optionnel)** :
+5. **Vérifier le déploiement** :
+   - Aller dans l'onglet **"Deployments"**
+   - Cliquer sur le dernier déploiement
+   - Consulter les **"Deploy Logs"** pour vérifier que :
+     - Docker build réussit
+     - SQLite est installé
+     - Gunicorn démarre correctement
+
+6. **Variables d'environnement (optionnel)** :
    - Dans l'interface Railway → "Variables"
-   - Ajouter `FLASK_ENV=production`
+   - Ajouter `FLASK_ENV=production` (déjà en production par défaut)
 
 **C'est tout ! 🎉** L'app est en ligne.
 
