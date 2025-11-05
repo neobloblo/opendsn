@@ -27,6 +27,7 @@ uploads/*.edi
 uploads/*.xml
 uploads/*.txt
 uploads/*.dsn
+!uploads/.gitkeep
 
 # Logs
 *.log

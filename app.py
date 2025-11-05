@@ -4,8 +4,15 @@ Application Flask DSN - Gestion de la norme DSN
 from flask import Flask, render_template, request
 import sqlite3
 import pandas as pd
+import os
 
 app = Flask(__name__)
+
+# Créer le dossier uploads au démarrage si inexistant
+UPLOAD_FOLDER = 'uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+    print(f"✅ Dossier '{UPLOAD_FOLDER}/' créé")
 
 def get_db_connection():
     """Connexion à la base de données SQLite"""
