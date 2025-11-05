@@ -1,305 +1,190 @@
-# Application DSN - Analyse Index Égalité Professionnelle
+# 📊 OpenDSN
 
-## État actuel (05/11/2025)
+**Analyseur DSN avec calcul automatique de l'Index Égalité Professionnelle**
 
-✅ **TOUT FONCTIONNE CORRECTEMENT !**
+Application web Flask pour analyser les fichiers DSN (Déclaration Sociale Nominative) et calculer automatiquement l'Index Égalité Professionnelle Femmes-Hommes selon la réglementation française.
 
-Le backend et le frontend fonctionnent parfaitement. Tests effectués le 05/11/2025 confirment que :
-- L'analyse DSN retourne bien tous les salariés (11 trouvés)
-- Le HTML généré contient toutes les données (noms, prénoms, rémunérations)
-- Le tableau des salariés est bien présent dans le HTML
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+![Flask](https://img.shields.io/badge/Flask-3.0-green)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
-**Si vous ne voyez pas le tableau**, c'est un problème de **cache navigateur**. Suivez ces étapes :
-1. Ouvrir le navigateur en mode navigation privée / incognito
-2. Ou vider complètement le cache navigateur (Ctrl+Shift+Delete)
-3. Ou faire un "hard refresh" : Ctrl+Shift+R (Windows/Linux) ou Cmd+Shift+R (Mac)
+## ✨ Fonctionnalités
 
-### Fonctionnalités implémentées
+### 📈 Calcul de l'Index Égalité Professionnelle
+- **Indicateur 1** (40 pts) : Écart de rémunération entre femmes et hommes (par CSP et tranche d'âge)
+- **Indicateur 2** (20 pts) : Écart d'augmentations individuelles
+- **Indicateur 3** (15 pts) : Écart de promotions
+- **Indicateur 4** (15 pts) : Pourcentage de salariées augmentées après un congé maternité
+- **Indicateur 5** (10 pts) : Nombre de personnes du sexe sous-représenté dans les 10 plus hautes rémunérations
 
-#### 1. Upload multi-fichiers ✅
-- Permet d'uploader jusqu'à 12 fichiers DSN (pour 12 mois)
-- Formulaire HTML avec `multiple="multiple"`
-- Validation JavaScript pour limiter à 12 fichiers max
-- Backend Flask qui gère `request.files.getlist('dsn_files')`
+### 🎨 Interface moderne
+- Design moderne avec gradients et animations CSS
+- Graphiques interactifs Chart.js
+- Tooltips contextuels pour guider l'utilisateur
+- Responsive Bootstrap 5
+- Sans éléments collapse (interface toujours visible)
 
-#### 2. Analyse mono-fichier ✅
-- Parse un fichier DSN unique
-- Calcule les indicateurs 1 et 5 de l'Index Égalité :
-  - **Indicateur 1** : Écart de rémunération H/F (40 points)
-  - **Indicateur 5** : Top 10 des rémunérations (10 points)
-- Affiche les statistiques détaillées par salarié
-- **FONCTIONNE CORRECTEMENT**
+### 📂 Gestion des fichiers DSN
+- Upload multi-fichiers (jusqu'à 12 mois)
+- Support des formats : `.edi`, `.xml`, `.txt`, `.dsn`
+- Analyse mono-fichier ou multi-mois
+- Filtrage par types de rémunération
+- Date de référence personnalisable
 
-#### 3. Analyse multi-mois ✅
-- Compare plusieurs fichiers DSN (premier vs dernier mois)
-- Calcule les indicateurs 2, 3, 4 :
-  - **Indicateur 2** : Écart d'augmentations (20 points) - seuil +5%
-  - **Indicateur 3** : Écart de promotions (15 points) - changement CSP
-  - **Indicateur 4** : Congé maternité (15 points) - NON CALCULABLE (besoin S21.G00.60)
-- **BACKEND FONCTIONNE** (logs montrent "11 salariés trouvés")
+### 🔍 Parser DSN complet
+- Structure S10 (Entreprise)
+- Structure S20 (Établissement)
+- Structure S21 (Salarié)
+  - S21.G00.40 : Identité (nom, prénom, sexe, date naissance)
+  - S21.G00.50 : Contrat (CSP, position convention)
+  - S21.G00.51 : Rémunération (par période et type)
 
-### ✅ Résolution du bug du 04/11/2025
+## 🚀 Démarrage rapide
 
-**Problème signalé** : "Le tableau des salariés ne s'affiche plus"
-**Diagnostic effectué** : Tests complets le 05/11/2025
-**Résultat** : Le backend ET le frontend fonctionnent parfaitement
+### Prérequis
+- Python 3.11+
+- pip
 
-**Tests confirmés** :
-- ✅ Parser DSN : 11 salariés correctement extraits
-- ✅ Données complètes : noms, prénoms, sexe, rémunérations
-- ✅ HTML généré : contient TOUT le tableau (68 420 caractères)
-- ✅ Contenu HTML : "MECHITOUA", "Louis" et tous les salariés présents
-- ✅ 34 lignes `<tr>` dans le HTML (header + 11 salariés × 3 indicateurs)
-
-**Conclusion** : C'était un problème de **cache navigateur**, pas de code
-
-## Architecture
-
-### Fichiers principaux
-
-```
-/Users/sebastienblochet/projets/dsn/
-├── app.py                      # Application Flask principale
-├── dsn_parser.py               # Parser DSN avec calculs indicateurs
-├── templates/
-│   └── egalite_hf.html         # Template page analyse égalité H/F
-├── uploads/                    # Fichiers DSN uploadés
-└── dsn.db                      # Base SQLite avec structures/rubriques DSN
-```
-
-### Routes Flask
-
-- `GET /` → Page d'accueil
-- `GET /structures` → Liste des structures DSN
-- `GET /rubriques` → Liste des rubriques DSN
-- `GET/POST /egalite-hf` → **Analyse Index Égalité**
-
-## Code clés
-
-### app.py - Route égalité-hf (lignes 86-212)
-
-```python
-@app.route('/egalite-hf', methods=['GET', 'POST'])
-def egalite_hf():
-    if request.method == 'POST':
-        files = request.files.getlist('dsn_files')
-
-        # Parser chaque fichier
-        parsers = []
-        for file_info in files_info:
-            parser = DSNParser()
-            parser.parse_file(file_info['path'])
-            parsers.append(parser)
-
-        # Mode simple (1 fichier) ou multi-mois (plusieurs fichiers)
-        if len(parsers) == 1:
-            analyse_data = parsers[0].get_results(...)
-        else:
-            analyse_data = parsers[0].get_results_multi_mois(
-                parsers_list=parsers, ...
-            )
-```
-
-### dsn_parser.py - Méthodes principales
-
-#### Indicateur 1 : Écart de rémunération
-```python
-def calculer_index_officiel(self, types_filtres=None) -> Dict
-```
-- Compare salaires H/F par tranche d'âge et CSP
-- Barème officiel : écart ≤1% = 40pts, ≤2% = 39pts, etc.
-
-#### Indicateur 2 : Augmentations (multi-mois)
-```python
-def _calculer_indicateur_augmentations_multi_mois(self, parsers_list, ...) -> Dict
-```
-- Compare salaires premier vs dernier mois
-- Augmentation = salaire_fin > salaire_début * 1.05
-- Barème : écart ≤2% = 20pts, ≤3% = 10pts, ≤5% = 5pts
-
-#### Indicateur 3 : Promotions (multi-mois)
-```python
-def _calculer_indicateur_promotions_multi_mois(self, parsers_list, ...) -> Dict
-```
-- Hiérarchie CSP : 5 (Ouvriers) < 4 (Employés) < 3 (Prof. inter.) < 2 (Cadres) < 1 (Dirigeants)
-- Promotion = passage à un niveau supérieur
-- Barème : écart ≤2% = 15pts, ≤3% = 10pts, ≤5% = 5pts
-
-#### Indicateur 5 : Top 10
-```python
-def calculer_indicateur_top10(self, types_filtres=None) -> Dict
-```
-- Compte H/F dans les 10 meilleures rémunérations
-- 10 points si au moins 4 de chaque sexe, sinon 0
-
-## Template HTML
-
-### Structure egalite_hf.html
-
-```html
-{% extends "base.html" %}
-
-{% block content %}
-<!-- Formulaire upload (lignes 33-140) -->
-<form method="POST" enctype="multipart/form-data">
-    <input type="file" name="dsn_files" multiple="multiple" accept=".edi,.xml">
-    <!-- Checkboxes types rémunération -->
-    <!-- Date de référence -->
-</form>
-
-{% if analyse %}
-<!-- Résultats (lignes 165-788) -->
-<div class="card">
-    <!-- Infos fichiers -->
-    <!-- Index Égalité scores -->
-    <!-- Indicateurs 1-5 -->
-
-    <!-- Statistiques H/F -->
-    <h6>Répartition Hommes / Femmes</h6>
-    <div class="row">
-        <!-- 3 cartes : Total / Hommes / Femmes -->
-    </div>
-
-    <!-- Tableau salariés -->
-    <h6>Liste des salariés (20 premiers)</h6>
-    <table class="table">
-        {% for salarie in analyse.stats.salaries[:20] %}
-        <tr>
-            <td>{{ salarie.matricule }}</td>
-            <td>{{ salarie.nom }}</td>
-            <!-- ... -->
-        </tr>
-        {% endfor %}
-    </table>
-</div>
-{% endif %}
-{% endblock %}
-```
-
-## Données DSN utilisées
-
-### Structures parsées
-
-- **S10** : Entreprise
-- **S20** : Établissement
-- **S21** : Salarié (données individuelles)
-  - **S21.G00.40** : Individu (nom, prénom, sexe, date naissance)
-  - **S21.G00.50** : Contrat (dates, CSP, position convention)
-  - **S21.G00.51** : Rémunération (montants par période et type)
-
-### Types de rémunération
-
-- `001` : Salaire brut
-- `002` : Salaire de base
-- **`003` : Salaire rétabli - reconstitué** ← **PAR DÉFAUT**
-- `010` : Prime exceptionnelle
-- etc.
-
-## Commandes pour démarrer
+### Installation locale
 
 ```bash
-cd /Users/sebastienblochet/projets/dsn
+# Cloner le repo
+git clone https://github.com/neobloblo/opendsn.git
+cd opendsn
 
-# Activer l'environnement virtuel
-source venv/bin/activate
+# Créer un environnement virtuel
+python -m venv venv
+source venv/bin/activate  # Sur Windows: venv\Scripts\activate
+
+# Installer les dépendances
+pip install -r requirements.txt
 
 # Lancer l'application
 python app.py
-
-# Accès: http://localhost:8050
-# Page analyse: http://localhost:8050/egalite-hf
 ```
 
-## ✅ Tests à effectuer après vider le cache
+L'application sera accessible sur **http://localhost:8050**
 
-### 1. Vérifier l'affichage complet ✅
+## 🌐 Déploiement en production
 
-### 2. Tests à faire
+L'application est prête pour le déploiement sur :
 
-- [ ] Upload 1 fichier → tableau visible ?
-- [ ] Upload 6 fichiers → indicateurs 2 & 3 calculés ?
-- [ ] Upload 12 fichiers → scores cohérents ?
-- [ ] Modifier types rémunération → recalcul OK ?
-- [ ] Modifier date de référence → tranches d'âge OK ?
+### Railway (Recommandé)
+1. Aller sur [railway.app](https://railway.app)
+2. "New Project" → "Deploy from GitHub"
+3. Sélectionner `neobloblo/opendsn`
+4. Railway déploie automatiquement !
 
-### 3. Améliorations futures
+### Render
+1. Aller sur [render.com](https://render.com)
+2. "New +" → "Web Service"
+3. Connecter GitHub → Sélectionner `opendsn`
+4. Render configure automatiquement
 
-- Export PDF des résultats
-- Graphiques pour visualiser les écarts
-- Historique des analyses
-- Comparaison entre périodes
-- Détection automatique du congé maternité (nécessite rubrique S21.G00.60)
+### Autres plateformes
+L'application inclut :
+- `Procfile` pour Heroku/Railway
+- `runtime.txt` pour spécifier Python 3.11
+- `requirements.txt` avec Gunicorn
+- Configuration production dans `app.py`
 
-## Notes importantes
+Voir [DEPLOIEMENT.md](DEPLOIEMENT.md) pour plus de détails.
 
-### Calcul des tranches d'âge
+## 📖 Documentation
 
-La date de référence détermine l'âge des salariés :
-- Par défaut : fin de période DSN (rubrique `S21.G00.06.002`)
-- Ou : date manuelle sélectionnée dans le formulaire
-
-Tranches : `<30`, `30-39`, `40-49`, `≥50`
-
-### Détection augmentation/promotion
-
-**Augmentation** :
-```python
-salaire_fin > salaire_début * 1.05  # +5% minimum
-```
-
-**Promotion** :
-```python
-hierarchie_csp[csp_fin] > hierarchie_csp[csp_debut]
-# Ex: passage de CSP 4 (Employé) à CSP 3 (Profession intermédiaire)
-```
-
-### Fichiers DSN de test
+### Structure du projet
 
 ```
-uploads/
-├── DSN_ZEP_202401_80818252100035!_NE_01.edi  # Janvier 2024
-├── DSN_ZEP_202402_80818252100035!_NE_01.edi  # Février 2024
-├── DSN_ZEP_202403_80818252100035!_NE_01.edi  # Mars 2024
-├── DSN_ZEP_202404_80818252100035!_NE_01.edi  # Avril 2024
-├── DSN_ZEP_202405_80818252100035!_NE_01.edi  # Mai 2024
-└── DSN_ZEP_202409_80818252100035!_NE_01.edi  # Septembre 2024
+opendsn/
+├── app.py                      # Application Flask principale
+├── dsn_parser.py               # Parser DSN et calcul indicateurs
+├── requirements.txt            # Dépendances Python
+├── Procfile                    # Configuration déploiement
+├── runtime.txt                 # Version Python
+├── dsn.db                      # Base SQLite (structures DSN)
+├── templates/
+│   ├── base.html              # Template de base
+│   ├── egalite_hf.html        # Page Index Égalité H/F
+│   ├── accueil.html           # Page d'accueil
+│   ├── structures.html        # Liste structures DSN
+│   └── rubriques.html         # Liste rubriques DSN
+├── uploads/                   # Fichiers DSN uploadés
+└── cahier_technique/          # Documentation DSN 2025.1
 ```
 
-## Logs de diagnostic
+### Utilisation
 
-### Tests effectués le 05/11/2025
+#### 1. Upload de fichiers DSN
+- Sélectionner 1 à 12 fichiers DSN mensuels
+- Formats acceptés : `.edi`, `.xml`, `.txt`, `.dsn`
 
-**Test backend (dsn_parser.py)** :
-```
-✅ 11 salariés trouvés
-✅ Toutes les données présentes (noms, prénoms, sexe, rémunérations)
-✅ Tous les indicateurs calculés
-```
+#### 2. Configuration de l'analyse
+- Choisir les types de rémunération à inclure (par défaut : 003 - Salaire rétabli)
+- Définir la date de référence pour le calcul des âges
 
-**Test rendu HTML** :
-```
-✅ Status HTTP: 200
-✅ Taille HTML: 68 420 caractères
-✅ 'Résultats de l'analyse' présent
-✅ 'Liste des salariés' présent
-✅ <table> présent
-✅ 'MECHITOUA' (nom salarié) présent
-✅ 'Louis' (prénom salarié) présent
-✅ 34 lignes <tr> (header + 11 salariés)
-```
+#### 3. Résultats
+- Scores des 5 indicateurs
+- Graphiques de répartition H/F
+- Graphiques des scores par indicateur
+- Détail par groupe CSP × Âge
+- Liste des salariés avec leurs rémunérations
 
-**Conclusion** : ✅ Backend et Frontend fonctionnent parfaitement
+## 🔧 Technologies utilisées
 
-## Contact / Support
+- **Backend** : Flask 3.0, Python 3.11
+- **Frontend** : Bootstrap 5, Chart.js 4.4
+- **Base de données** : SQLite
+- **Parser** : Pandas, chardet
+- **Production** : Gunicorn
 
-En cas de problème :
-1. Vérifier les logs serveur Flask
-2. Vérifier la console navigateur (F12)
-3. Tester en mode navigation privée
-4. Redémarrer Flask : `Ctrl+C` puis `python app.py`
+## 📊 Calcul des indicateurs
+
+### Indicateur 1 : Écart de rémunération (40 points)
+Calcule l'écart de rémunération moyenne entre femmes et hommes par groupe CSP × Tranche d'âge.
+Barème officiel : écart ≤ 1% = 40 pts, ≤ 2% = 39 pts, etc.
+
+### Indicateur 2 : Augmentations (20 points)
+Compare les taux d'augmentation individuelle entre femmes et hommes.
+Seuil de détection : +5% minimum entre premier et dernier mois.
+
+### Indicateur 3 : Promotions (15 points)
+Compare les taux de promotion entre femmes et hommes.
+Détection : changement de CSP vers un niveau supérieur.
+
+### Indicateur 4 : Congé maternité (15 points)
+Vérifie que les salariées ont été augmentées à leur retour de congé maternité.
+**Note** : Nécessite la rubrique S21.G00.60 (non calculable actuellement).
+
+### Indicateur 5 : Top 10 (10 points)
+Compte le nombre de personnes du sexe sous-représenté dans les 10 plus hautes rémunérations.
+10 points si au moins 4 personnes, sinon 0.
+
+## 🤝 Contribution
+
+Les contributions sont les bienvenues ! N'hésitez pas à :
+- Reporter des bugs via les [Issues](https://github.com/neobloblo/opendsn/issues)
+- Proposer des améliorations
+- Soumettre des Pull Requests
+
+## 📄 License
+
+MIT License - Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+## 📞 Contact
+
+**Auteur** : Sébastien Blochet
+**GitHub** : [@neobloblo](https://github.com/neobloblo)
+**Projet** : [OpenDSN](https://github.com/neobloblo/opendsn)
+
+## 🙏 Remerciements
+
+- Documentation officielle DSN 2025.1
+- [Flask](https://flask.palletsprojects.com/)
+- [Bootstrap](https://getbootstrap.com/)
+- [Chart.js](https://www.chartjs.org/)
 
 ---
 
-**Dernière mise à jour** : 05/11/2025 10:45
-**Status** : ✅ Tout fonctionne parfaitement (Backend + Frontend)
-**Note** : En cas de problème d'affichage, vider le cache navigateur
+**⚠️ Note légale** : Cet outil est fourni à titre informatif. Vérifiez toujours les résultats avec un expert-comptable ou un juriste pour les déclarations officielles.
+
+**🇫🇷 Made in France** pour faciliter le calcul de l'Index Égalité Professionnelle
