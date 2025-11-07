@@ -1,0 +1,231 @@
+═══════════════════════════════════════════════════════════════
+  COMMANDES GIT PRÊTES À EXÉCUTER - OpenDSN v2.0.0
+═══════════════════════════════════════════════════════════════
+
+📁 Répertoire : D:\ClaudeProjects\opendsn2
+📌 Branche    : master
+🔢 Version    : 2.0.0
+📅 Date       : 2025-11-07
+
+
+═══════════════════════════════════════════════════════════════
+  ÉTAPE 1 : AJOUTER TOUS LES FICHIERS
+═══════════════════════════════════════════════════════════════
+
+cd opendsn2
+git add .
+
+
+═══════════════════════════════════════════════════════════════
+  ÉTAPE 2 : CRÉER LE COMMIT
+═══════════════════════════════════════════════════════════════
+
+git commit -m "feat: v2.0.0 - Nomenclature PCS-ESE complète et distinction Groupe/CSP
+
+Ajouts majeurs:
+- Nomenclature PCS-ESE complète (412 codes) intégrée dans la base de données
+- Nouvelle page 'Catégories Socioprofessionnelles' avec documentation complète
+- Script d'import de la nomenclature (import_nomenclature.py)
+
+Corrections terminologiques:
+- Distinction claire entre Groupe (1er chiffre) et CSP (2 chiffres)
+- Renommage de toutes les variables 'csp' en 'groupe' dans le code
+- Ajout de l'extraction et affichage de la vraie CSP
+
+Fonctionnalités Evolution de l'effectif:
+- Graphiques par Groupe CSP (camembert + courbes d'évolution)
+- Récapitulatif détaillé par salarié avec sélecteur de période
+- 14 colonnes d'informations incluant Groupe, CSP et libellé emploi
+- Libellés emploi récupérés automatiquement depuis la nomenclature
+
+Améliorations Parser:
+- Nouvelles fonctions d'extraction Groupe et CSP depuis code PCS-ESE
+- Cache de nomenclature au niveau classe pour optimiser les performances
+- Récupération automatique des libellés depuis la base de données
+
+Documentation:
+- README.md mis à jour avec toutes les nouvelles fonctionnalités
+- CHANGELOG.md créé avec historique détaillé
+- GIT_GUIDE.md pour faciliter les commits futurs
+- REPRISE_PROJET.md pour faciliter la reprise du développement
+
+Fichiers ajoutés:
+- nomenclature_pcs_ese.sql (412 codes)
+- import_nomenclature.py
+- templates/categories_socioprofessionnelles.html
+- CHANGELOG.md
+- GIT_GUIDE.md
+- REPRISE_PROJET.md
+- COMMANDES_GIT.txt
+
+Fichiers modifiés:
+- README.md (documentation complète)
+- app.py (nouvelle route + modifications terminologie)
+- dsn_parser.py (fonctions nomenclature + distinction Groupe/CSP)
+- dsn.db (table nomenclature_pcs_ese ajoutée)
+- templates/base.html (nouveau lien navigation)
+- templates/evolution_effectif.html (graphiques + tableau récapitulatif)
+
+BREAKING CHANGE: Renommage de toutes les variables 'csp' en 'groupe'
+dans le code pour respecter la nomenclature officielle PCS-ESE de l'INSEE.
+"
+
+
+═══════════════════════════════════════════════════════════════
+  ÉTAPE 3 : POUSSER VERS GITHUB
+═══════════════════════════════════════════════════════════════
+
+git push origin master
+
+
+═══════════════════════════════════════════════════════════════
+  ÉTAPE 4 (OPTIONNEL) : CRÉER UN TAG DE VERSION
+═══════════════════════════════════════════════════════════════
+
+git tag -a v2.0.0 -m "Version 2.0.0 - Nomenclature PCS-ESE complète
+
+Ajouts majeurs:
+- Nomenclature PCS-ESE intégrée (412 codes)
+- Page Catégories Socioprofessionnelles
+- Distinction Groupe/CSP
+- Récapitulatif détaillé par salarié
+- Graphiques par Groupe CSP
+
+Voir CHANGELOG.md pour tous les détails."
+
+git push origin v2.0.0
+
+
+═══════════════════════════════════════════════════════════════
+  COMMANDES UTILES AVANT LE COMMIT
+═══════════════════════════════════════════════════════════════
+
+# Voir l'état actuel
+git status
+
+# Voir les fichiers qui seront commités
+git diff --staged
+
+# Voir tous les changements
+git diff
+
+# Voir l'historique
+git log --oneline -5
+
+
+═══════════════════════════════════════════════════════════════
+  COMMANDES DE VÉRIFICATION APRÈS LE COMMIT
+═══════════════════════════════════════════════════════════════
+
+# Voir le commit créé
+git show HEAD
+
+# Voir l'historique
+git log --oneline -10
+
+# Voir les branches
+git branch -a
+
+
+═══════════════════════════════════════════════════════════════
+  EN CAS DE PROBLÈME
+═══════════════════════════════════════════════════════════════
+
+# Annuler le staging (avant commit)
+git reset
+
+# Modifier le dernier commit (avant push)
+git commit --amend
+
+# Annuler le dernier commit en gardant les modifications (avant push)
+git reset --soft HEAD~1
+
+# Voir les différences entre local et remote
+git diff origin/master
+
+
+═══════════════════════════════════════════════════════════════
+  RÉSUMÉ DES MODIFICATIONS
+═══════════════════════════════════════════════════════════════
+
+📊 Fichiers modifiés : 6
+  - README.md
+  - app.py
+  - dsn.db
+  - dsn_parser.py
+  - templates/base.html
+  - templates/evolution_effectif.html
+
+📝 Nouveaux fichiers : 7
+  - CHANGELOG.md
+  - GIT_GUIDE.md
+  - REPRISE_PROJET.md
+  - COMMANDES_GIT.txt
+  - import_nomenclature.py
+  - nomenclature_pcs_ese.sql
+  - templates/categories_socioprofessionnelles.html
+
+🔢 Lignes ajoutées : ~2000+
+🔢 Codes PCS-ESE : 412
+
+🚀 Nouvelles fonctionnalités : 4 majeures
+  1. Nomenclature PCS-ESE complète
+  2. Page Catégories Socioprofessionnelles
+  3. Distinction Groupe/CSP
+  4. Récapitulatif détaillé par salarié
+
+
+═══════════════════════════════════════════════════════════════
+  APRÈS LE PUSH VERS GITHUB
+═══════════════════════════════════════════════════════════════
+
+1. Créer une Release sur GitHub:
+   - Aller sur: https://github.com/neobloblo/opendsn/releases
+   - Cliquer sur "Draft a new release"
+   - Tag: v2.0.0
+   - Titre: v2.0.0 - Nomenclature PCS-ESE complète
+   - Description: Copier le contenu du CHANGELOG.md
+   - Publier
+
+2. Vérifier le déploiement automatique:
+   - Railway: Vérifier que le déploiement se lance
+   - Render: Vérifier le build
+
+3. Tester l'application en production:
+   - Tester la nouvelle page /categories-socioprofessionnelles
+   - Tester le récapitulatif par salarié
+   - Tester les graphiques Groupe CSP
+
+
+═══════════════════════════════════════════════════════════════
+  CHECKLIST FINALE AVANT LE COMMIT
+═══════════════════════════════════════════════════════════════
+
+[ ] L'application fonctionne localement (http://localhost:8050)
+[ ] La nomenclature est bien importée (412 codes)
+[ ] Tous les tests sont passés
+[ ] La documentation est à jour (README.md, CHANGELOG.md)
+[ ] Le .gitignore est correct
+[ ] Aucun fichier sensible n'est inclus (.env, etc.)
+[ ] Les messages de commit sont clairs
+[ ] Vous êtes sur la bonne branche (master)
+
+
+═══════════════════════════════════════════════════════════════
+  SUPPORT ET DOCUMENTATION
+═══════════════════════════════════════════════════════════════
+
+📖 Documentation principale : README.md
+📝 Historique détaillé    : CHANGELOG.md
+🔧 Guide Git             : GIT_GUIDE.md
+🔄 Guide de reprise      : REPRISE_PROJET.md
+
+🌐 GitHub    : https://github.com/neobloblo/opendsn
+👤 Auteur    : Sébastien Blochet (@neobloblo)
+
+
+═══════════════════════════════════════════════════════════════
+
+Prêt pour le commit ! 🚀
+
+═══════════════════════════════════════════════════════════════

@@ -5,13 +5,18 @@ Format: Lignes de 200 caractères avec structure S21.G00.05 (code rubrique)
 
 import chardet
 import re
-from typing import List, Dict, Any
+import sqlite3
+import os
+from typing import List, Dict, Any, Optional
 from collections import defaultdict
 from datetime import datetime
 
 
 class DSNParser:
     """Parser pour fichiers DSN format Phase 3"""
+
+    # Cache pour la nomenclature PCS-ESE
+    _nomenclature_pcs_ese = None
 
     # Table de correspondance des types de rémunération (S21.G00.51.011)
     TYPES_REMUNERATION = {
@@ -43,6 +48,7 @@ class DSNParser:
         self.raw_lines = []
         self.current_period = {}  # Pour stocker les dates et type de période en cours
         self.date_reference = None  # Date de référence pour le calcul de l'âge
+        self.date_declaration = None  # Date du mois principal déclaré (S20.G00.05.005)
         self.stats = {
             'total_lines': 0,
             'entreprise': {},
@@ -50,6 +56,49 @@ class DSNParser:
             'contrats': [],
             'versements': []
         }
+
+    @classmethod
+    def _load_nomenclature_pcs_ese(cls) -> Dict[str, str]:
+        """Charge la nomenclature PCS-ESE depuis la base de données (avec cache)"""
+        if cls._nomenclature_pcs_ese is not None:
+            return cls._nomenclature_pcs_ese
+
+        nomenclature = {}
+        try:
+            # Chemin vers la base de données
+            db_path = os.path.join(os.path.dirname(__file__), 'dsn.db')
+            if not os.path.exists(db_path):
+                return nomenclature
+
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            # Vérifier si la table existe
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='nomenclature_pcs_ese'")
+            if not cursor.fetchone():
+                conn.close()
+                return nomenclature
+
+            # Charger toute la nomenclature
+            cursor.execute("SELECT code, libelle FROM nomenclature_pcs_ese")
+            for row in cursor.fetchall():
+                nomenclature[row[0]] = row[1]
+
+            conn.close()
+            cls._nomenclature_pcs_ese = nomenclature
+
+        except Exception as e:
+            print(f"Erreur lors du chargement de la nomenclature PCS-ESE : {e}")
+
+        return nomenclature
+
+    def get_libelle_emploi(self, code_pcs_ese: Optional[str]) -> Optional[str]:
+        """Récupère le libellé d'emploi à partir du code PCS-ESE"""
+        if not code_pcs_ese:
+            return None
+
+        nomenclature = self._load_nomenclature_pcs_ese()
+        return nomenclature.get(code_pcs_ese)
 
     def detect_encoding(self, file_path: str) -> str:
         """Détecte l'encodage du fichier DSN"""
@@ -137,8 +186,13 @@ class DSNParser:
         rubrique = parsed['rubrique']
         valeur = parsed['valeur']
 
+        # Date du mois principal déclaré (S20.G00.05.005)
+        if rubrique == 'S20.G00.05.005':
+            self.date_declaration = valeur
+            self.stats['entreprise']['date_declaration'] = valeur
+
         # Informations entreprise (S21.G00.06 = SIRET)
-        if rubrique == 'S21.G00.06.001':
+        elif rubrique == 'S21.G00.06.001':
             self.stats['entreprise']['siret'] = valeur
 
         # Raison sociale (S21.G00.11.001)
@@ -178,17 +232,54 @@ class DSNParser:
                 self.stats['salaries'][-1]['date_naissance'] = valeur
                 # La tranche d'âge sera calculée après le parsing avec la date de référence
 
-        # Statut du salarié conventionnel (S21.G00.40.002) - Important pour la CSP
+        # Date d'embauche (S21.G00.40.001)
+        elif rubrique == 'S21.G00.40.001':
+            if self.stats['salaries']:
+                self.stats['salaries'][-1]['date_embauche'] = valeur
+
+        # Date de sortie (S21.G00.62.001)
+        elif rubrique == 'S21.G00.62.001':
+            if self.stats['salaries']:
+                self.stats['salaries'][-1]['date_sortie'] = valeur
+
+        # Statut du salarié conventionnel (S21.G00.40.002) - Important pour le Groupe CSP
         elif rubrique == 'S21.G00.40.002':
             if self.stats['salaries']:
                 self.stats['salaries'][-1]['statut_conventionnel'] = valeur
-                # Calculer immédiatement la CSP depuis ce code
-                self.stats['salaries'][-1]['csp'] = self._determine_csp_from_statut(valeur)
+                # Calculer immédiatement le Groupe depuis ce code
+                groupe = self._determine_csp_from_statut(valeur)
+                if groupe:
+                    self.stats['salaries'][-1]['groupe'] = groupe
+                    self.stats['salaries'][-1]['groupe_code'] = self._groupe_to_code(groupe)
 
         # Code statut catégoriel Retraite Complémentaire obligatoire (S21.G00.40.003)
         elif rubrique == 'S21.G00.40.003':
             if self.stats['salaries']:
                 self.stats['salaries'][-1]['statut_retraite'] = valeur
+
+        # Code profession et catégorie socioprofessionnelle PCS-ESE (S21.G00.40.004)
+        elif rubrique == 'S21.G00.40.004':
+            if self.stats['salaries']:
+                self.stats['salaries'][-1]['code_pcs_ese'] = valeur
+                # Récupérer le libellé d'emploi depuis la nomenclature
+                libelle_emploi = self.get_libelle_emploi(valeur)
+                if libelle_emploi:
+                    self.stats['salaries'][-1]['libelle_emploi'] = libelle_emploi
+
+                # Extraire le Groupe (1er chiffre) depuis le code PCS-ESE (prioritaire sur S21.G00.40.002)
+                groupe = self._determine_groupe_from_pcs_ese(valeur)
+                if groupe:
+                    self.stats['salaries'][-1]['groupe'] = groupe
+                    self.stats['salaries'][-1]['groupe_code'] = self._groupe_to_code(groupe)
+
+                # Extraire la CSP (2 premiers chiffres) depuis le code PCS-ESE
+                csp_code = self._extract_csp_from_pcs_ese(valeur)
+                if csp_code:
+                    self.stats['salaries'][-1]['csp'] = csp_code
+                    # Récupérer le libellé de la CSP
+                    csp_libelle = self.get_libelle_csp(csp_code)
+                    if csp_libelle:
+                        self.stats['salaries'][-1]['csp_libelle'] = csp_libelle
 
         # Statut conventionnel (S21.G00.40.007)
         elif rubrique == 'S21.G00.40.007':
@@ -285,7 +376,7 @@ class DSNParser:
 
     def _determine_csp_from_statut(self, statut_code: str) -> str:
         """
-        Détermine la catégorie socio-professionnelle depuis le code S21.G00.40.002
+        Détermine le groupe de catégorie socio-professionnelle depuis le code S21.G00.40.002
         (Statut du salarié conventionnel)
 
         Mapping officiel DSN:
@@ -299,7 +390,7 @@ class DSNParser:
             statut_code: Code du statut conventionnel (S21.G00.40.002)
 
         Returns:
-            CSP: 'Ouvriers', 'Employés', 'Techniciens et agents de maîtrise', 'Ingénieurs et cadres'
+            Groupe: 'Ouvriers', 'Employés', 'Techniciens et agents de maîtrise', 'Ingénieurs et cadres'
         """
         if not statut_code:
             return None
@@ -318,6 +409,126 @@ class DSNParser:
         }
 
         return mapping.get(code, None)
+
+    def _determine_groupe_from_pcs_ese(self, code_pcs_ese: str) -> str:
+        """
+        Détermine le groupe de catégorie socio-professionnelle depuis le code PCS-ESE (S21.G00.40.004)
+
+        Le code PCS-ESE est composé de 3 chiffres + 1 lettre (ex: "352a", "546d", "621a")
+        Le premier chiffre indique le GROUPE selon la nomenclature INSEE:
+        - 2: Artisans, commerçants et chefs d'entreprise
+        - 3: Cadres et professions intellectuelles supérieures
+        - 4: Professions intermédiaires
+        - 5: Employés
+        - 6: Ouvriers
+
+        Args:
+            code_pcs_ese: Code PCS-ESE (S21.G00.40.004)
+
+        Returns:
+            Groupe: 'Ouvriers', 'Employés', 'Techniciens et agents de maîtrise', 'Ingénieurs et cadres'
+        """
+        if not code_pcs_ese or len(code_pcs_ese) < 1:
+            return None
+
+        # Extraire le premier caractère qui indique le groupe
+        premier_chiffre = code_pcs_ese[0]
+
+        # Mapping selon la nomenclature PCS-ESE de l'INSEE
+        mapping = {
+            '2': 'Artisans, commerçants et chefs d\'entreprise',
+            '3': 'Ingénieurs et cadres',  # Cadres et professions intellectuelles supérieures
+            '4': 'Techniciens et agents de maîtrise',  # Professions intermédiaires
+            '5': 'Employés',
+            '6': 'Ouvriers',
+        }
+
+        return mapping.get(premier_chiffre, None)
+
+    def _extract_csp_from_pcs_ese(self, code_pcs_ese: str) -> Optional[str]:
+        """
+        Extrait la catégorie socioprofessionnelle (CSP) depuis le code PCS-ESE
+
+        La CSP correspond aux 2 premiers chiffres du code PCS-ESE
+        Ex: "382a" -> "38", "524a" -> "52", "636d" -> "63"
+
+        Args:
+            code_pcs_ese: Code PCS-ESE complet (ex: "382a")
+
+        Returns:
+            CSP (2 chiffres) ou None si le code est invalide
+        """
+        if not code_pcs_ese or len(code_pcs_ese) < 2:
+            return None
+
+        # Extraire les 2 premiers caractères
+        csp = code_pcs_ese[0:2]
+
+        # Vérifier que ce sont bien des chiffres
+        if csp.isdigit():
+            return csp
+
+        return None
+
+    def get_libelle_csp(self, csp_code: Optional[str]) -> Optional[str]:
+        """
+        Récupère le libellé de la CSP à partir de son code (2 chiffres)
+        en utilisant la nomenclature PCS-ESE
+
+        Args:
+            csp_code: Code CSP à 2 chiffres (ex: "38", "52")
+
+        Returns:
+            Libellé de la CSP ou None
+        """
+        if not csp_code:
+            return None
+
+        nomenclature = self._load_nomenclature_pcs_ese()
+
+        # Chercher un code qui commence par ces 2 chiffres pour récupérer le libellé de la catégorie
+        # On prend le premier code trouvé commençant par ces 2 chiffres
+        for code, libelle in nomenclature.items():
+            if code.startswith(csp_code):
+                # Extraire juste la partie catégorie du libellé (avant le détail)
+                # Par exemple pour "38": on veut juste "Professions intermédiaires..."
+                return libelle
+
+        return None
+
+    def _groupe_to_code(self, groupe: str) -> str:
+        """
+        Convertit un groupe de CSP textuel en code numérique pour l'Index Égalité
+
+        Codes utilisés :
+        - 21 : Ouvriers
+        - 22 : Employés
+        - 23 : Techniciens et agents de maîtrise (Professions intermédiaires)
+        - 24 : Ingénieurs et cadres (Cadres et professions intellectuelles)
+        - 25 : Artisans, commerçants
+        - 26 : Chefs d'entreprise
+
+        Args:
+            groupe: Groupe de catégorie socioprofessionnelle textuel
+
+        Returns:
+            Code Groupe: '21', '22', '23', '24', '25' ou '26'
+        """
+        if not groupe:
+            return None
+
+        # Mapping Groupe textuel vers code numérique
+        mapping = {
+            'Ouvriers': '21',
+            'Employés': '22',
+            'Techniciens et agents de maîtrise': '23',
+            'Ingénieurs et cadres': '24',
+            'Artisans, commerçants et chefs d\'entreprise': '25',
+            'Artisans, commerçants': '25',
+            'Chefs d\'entreprise': '26',
+        }
+
+        return mapping.get(groupe, None)
 
     def _determine_csp(self, position_convention: str, statut: str = None, qualification: str = None) -> str:
         """
